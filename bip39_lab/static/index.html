@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="lab-token" content="__LAB_TOKEN__">
+  <meta name="description" content="Bancada local para observar tentativas BIP-39 e o saldo de um alvo controlado em regtest.">
+  <title>BIP-39 · Laboratório ao vivo</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="BIP-39 laboratório, início"><img src="/favicon.svg" width="34" height="34" alt=""><span>BIP-39 <span class="brand-sub">/ laboratório</span></span></a>
+    <div class="connection"><span class="status-dot" id="connection-dot"></span><span id="connection-text">Conectando ao painel</span><span class="network-tag">REGTEST</span></div>
+  </header>
+  <main>
+    <div class="page-heading"><div><p class="eyebrow">BANCADA DE CRIPTOGRAFIA</p><h1>Da palavra à chave.</h1><p class="intro">Observe uma busca limitada, uma tentativa de cada vez.</p></div><p class="lab-note">Ambiente local · BTC de teste<br><strong>Nunca use uma carteira com dinheiro real.</strong></p></div>
+    <div id="page-error" class="error-message" role="alert" hidden></div>
+    <div class="workspace">
+      <aside class="setup-panel">
+        <div class="panel-title"><h2>Configure o experimento</h2><span class="small-tag">ALVO ÚNICO</span></div>
+        <div class="target-actions"><button class="button secondary" id="generate" type="button">Gerar alvo</button><button class="button text-button" id="example" type="button">Usar exemplo público ↗</button></div>
+        <form id="experiment-form" autocomplete="off">
+          <fieldset id="configuration">
+            <label for="target">Endereço-alvo regtest</label>
+            <textarea id="target" name="target" rows="2" spellcheck="false" maxlength="100" required placeholder="bcrt1q…"></textarea>
+            <label for="template">Modelo de 12 palavras</label>
+            <textarea id="template" name="template" rows="5" spellcheck="false" maxlength="500" required placeholder="Insira as palavras conhecidas e use ? nas posições desconhecidas."></textarea>
+            <p class="field-help" id="template-help">Substitua de uma a onze palavras por <code>?</code>.</p>
+            <details class="passphrase-options"><summary>Passphrase BIP-39 opcional</summary><label class="sr-only" for="passphrase">Passphrase conhecida</label><input id="passphrase" type="password" autocomplete="off" maxlength="1024" placeholder="Vazia por padrão"><p class="field-help">Precisa ser a mesma usada para gerar o alvo.</p></details>
+            <label for="operation">Operação</label>
+            <select id="operation"><option value="limited">Busca limitada · 1 a 11 ?</option><option value="validate">Validar uma mnemonic completa · 12 palavras</option></select>
+            <p class="field-help" id="operation-help">A busca limitada enumera somente as posições marcadas com <code>?</code>.</p>
+            <label for="mode">Ritmo das tentativas</label>
+            <select id="mode"><option value="visual">Visual · até 50 tentativas/s</option><option value="fast">Sem pausa · velocidade máxima</option></select>
+            <p class="field-help">No modo visual, cada tentativa real recebe uma pausa de 20 ms.</p>
+          </fieldset>
+          <label class="sound-option"><input id="sound" type="checkbox" checked> Alerta sonoro se o alvo encontrado tiver saldo</label>
+          <div class="run-actions"><button class="button primary" id="start" type="submit"><span>▶</span> Iniciar experimento</button><button class="button stop" id="stop" type="button" disabled aria-label="Interromper experimento">■</button></div>
+          <button class="button clear-button" id="clear" type="button">Limpar experimento</button>
+        </form>
+        <div class="path-note"><span>CAMINHO DE DERIVAÇÃO</span><code>m/84'/1'/0'/0/0</code><p>12 palavras English. Busca limitada a 11 ?; a validação completa faz uma única derivação. Nenhuma transação.</p></div>
+      </aside>
+      <section class="live-panel" aria-label="Acompanhamento do experimento">
+        <div class="live-heading"><div class="panel-title"><span class="status-dot" id="run-dot"></span><h2 id="run-state">Pronto para observar</h2></div><span class="sample-badge" id="sample-label">AGUARDANDO INÍCIO</span></div>
+        <div class="word-grid" id="word-grid" aria-label="Doze posições da mnemonic"></div>
+        <div class="sample-caption"><span><i class="legend known"></i> Palavra conhecida <i class="legend unknown"></i> Palavra em teste</span><span>Amostras a cada 250 ms</span></div>
+        <div class="pipeline" aria-label="Etapas da verificação"><div id="stage-checksum"><span class="stage-number">01</span><strong>Checksum</strong><small id="checksum-state">Aguardando</small></div><span class="pipeline-arrow">→</span><div><span class="stage-number">02</span><strong>Seed</strong><small>PBKDF2 · 2.048 iterações</small></div><span class="pipeline-arrow">→</span><div><span class="stage-number">03</span><strong>Derivação</strong><small>BIP-32 / BIP-84</small></div><span class="pipeline-arrow">→</span><div id="stage-match"><span class="stage-number">04</span><strong>Comparação</strong><small id="match-state">Endereço exato</small></div></div>
+        <div class="candidate-address"><span>ÚLTIMO ENDEREÇO DERIVADO</span><code id="derived-address">Aguardando uma tentativa com checksum válido.</code><span id="comparison-label">A comparação acontece localmente.</span></div>
+        <div class="measurements">
+          <div class="attempt-counter"><span>Tentativas concluídas</span><strong id="attempts">0</strong><small>de <span id="total">—</span> combinações</small></div>
+          <div class="mini-metrics"><div><span>Mnemonics válidas</span><strong id="valid">0</strong></div><div><span>Descartadas no checksum</span><strong id="rejected">0</strong></div><div><span>Tempo decorrido</span><strong id="elapsed">0,0 s</strong></div><div><span>ETA do espaço restante</span><strong id="eta">—</strong></div></div>
+        </div>
+        <div class="progress-caption"><span>Espaço examinado</span><strong id="percentage">0,0000%</strong></div><progress id="progress" value="0" max="100" aria-label="Percentual do espaço examinado"></progress>
+        <div class="lower-panels">
+          <section class="rate-panel" aria-label="Taxa de tentativas"><div class="metric-heading"><h3>Ritmo observado</h3><span><strong id="rate">0</strong> tentativas/s</span></div><svg id="rate-chart" viewBox="0 0 500 80" role="img" aria-label="Histórico recente da taxa de tentativas"><path class="chart-grid" d="M0 20H500M0 50H500M0 79H500"/><path id="rate-line" d="M0 79H500"/></svg><p>Taxa real, incluindo descartes e a pausa visual.</p></section>
+          <section class="balance-panel" aria-label="Saldo do endereço-alvo"><div class="metric-heading"><h3>Saldo do alvo</h3><span class="small-tag" id="balance-status">SEM CONSULTA</span></div><div class="balance-number"><strong id="balance-amount">—</strong><span>BTC de teste</span></div><p id="balance-detail">Inicie um experimento para consultar o nó local.</p><p class="balance-footnote">UTXOs confirmados em regtest. Pode incluir coinbase imatura. Não inclui mempool.</p></section>
+        </div>
+        <section id="result" class="result-panel" aria-live="polite" hidden><div><span class="eyebrow" id="result-label">RESULTADO</span><h3 id="result-title"></h3><p id="result-description"></p></div><button class="button secondary" id="reveal" type="button" hidden>Revelar chave de laboratório</button></section>
+        <details class="samples-panel"><summary>Amostras das verificações <span>As tentativas intermediárias também são contabilizadas.</span></summary><table><thead><tr><th>Tentativa</th><th>Checksum BIP-39</th><th>Próxima etapa</th></tr></thead><tbody id="samples-body"><tr><td colspan="3">Aguardando o início do experimento.</td></tr></tbody></table></details>
+      </section>
+    </div>
+    <footer><span>Pesquisa controlada, endereço fixo.</span><span>Saldo positivo sozinho não é uma correspondência. A chave é revelada apenas após encontrar o alvo.</span></footer>
+  </main>
+  <dialog id="generated-dialog"><div class="dialog-heading"><h2>Seu alvo de laboratório</h2><button class="icon-button" id="close-generated" aria-label="Fechar mnemonic gerada">×</button></div><p>Estas 12 palavras foram geradas agora. Não use esta mnemonic para receber dinheiro real.</p><div class="secret-value" id="generated-phrase"></div><p>O endereço e o modelo já foram preenchidos. A última palavra será testada.</p><button class="button primary" id="use-generated">Usar este alvo</button></dialog>
+  <dialog id="key-dialog"><div class="dialog-heading"><h2>Chave do alvo encontrado</h2><button class="icon-button" id="close-key" aria-label="Ocultar chave privada">×</button></div><p>Somente regtest. Este material pertence ao endereço exato do experimento e não deve receber dinheiro real.</p><label>Chave privada · hexadecimal, 32 bytes</label><div class="secret-value" id="private-key"></div><label>Mnemonic encontrada</label><div class="secret-value" id="found-phrase"></div><label>Endereço conferido</label><code class="secret-value" id="found-address"></code><p>A chave não é salva nem exportada pela aplicação.</p><button class="button secondary" id="hide-key">Ocultar chave</button></dialog>
+</body>
+</html>
