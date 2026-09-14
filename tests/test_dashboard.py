@@ -82,6 +82,26 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(stats["comparisons"], 0)
         self.assertEqual(stats["in_flight"], 1)
 
+    def test_direct_validation_error_exposes_partial_stage_without_overcounting_attempts(self) -> None:
+        with patch("bip39_lab.dashboard.RegtestBalanceClient.fetch", side_effect=BalanceUnavailable("Sem nó.")), \
+             patch("bip39_lab.dashboard.wallet_from_seed", side_effect=ValueError("validation fixture error")):
+            self.dashboard.start(
+                PUBLIC_REGTEST_ADDRESS, PUBLIC_MNEMONIC, mode="fast", operation="validate"
+            )
+            state = self.wait_for(lambda value: value["status"] == "error")
+        stats = state["stats"]
+        self.assertEqual(state["error"], "validation fixture error")
+        self.assertEqual(stats["attempts"], 0)
+        self.assertEqual(stats["valid_mnemonics"], 1)
+        self.assertEqual(stats["rejected_checksum"], 0)
+        self.assertEqual(stats["seeds_derived"], 1)
+        self.assertEqual(stats["derivations"], 0)
+        self.assertEqual(stats["addresses_generated"], 0)
+        self.assertEqual(stats["comparisons"], 0)
+        self.assertEqual(stats["matches"], 0)
+        self.assertEqual(stats["in_flight"], 1)
+        self.assertEqual(stats["remaining_combinations"], 1)
+
     def test_complete_mnemonic_validation_never_returns_false_positive(self) -> None:
         other = derive_wallet(mnemonic_from_entropy((2**127).to_bytes(16, "big")), Network.REGTEST)
         self.dashboard.start(other.address, PUBLIC_MNEMONIC, mode="fast", operation="validate")

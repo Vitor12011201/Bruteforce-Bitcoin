@@ -159,17 +159,28 @@ class Dashboard:
         try:
             if job.operation == "validate":
                 started = monotonic()
-                valid = is_valid_mnemonic(job.template)
+                valid = False
                 seeds_derived = derivations = addresses_generated = comparisons = matches = 0
-                wallet = None
-                if valid:
-                    seed = mnemonic_to_seed(job.template, passphrase)
-                    seeds_derived = 1
-                    wallet = wallet_from_seed(seed, Network.REGTEST)
-                    derivations = addresses_generated = comparisons = 1
-                address = wallet.address if wallet is not None else None
-                if address == job.target:
-                    matches = 1
+                try:
+                    valid = is_valid_mnemonic(job.template)
+                    wallet = None
+                    if valid:
+                        seed = mnemonic_to_seed(job.template, passphrase)
+                        seeds_derived = 1
+                        wallet = wallet_from_seed(seed, Network.REGTEST)
+                        derivations = addresses_generated = comparisons = 1
+                    address = wallet.address if wallet is not None else None
+                    if address == job.target:
+                        matches = 1
+                except Exception as error:
+                    stats = SearchStats(
+                        0, 1 if valid else 0, 0 if valid else 0, monotonic() - started, 1,
+                        seeds_derived, derivations, addresses_generated, comparisons, matches, 1,
+                    )
+                    with job.lock:
+                        job.stats, job.status, job.error = stats, "error", str(error)
+                    job.refresh.set()
+                    return
                 candidate = CandidateSample(1, job.template, valid, address)
                 stats = SearchStats(
                     1, 1 if valid else 0, 0 if valid else 1, monotonic() - started, 1,
