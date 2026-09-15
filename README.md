@@ -117,6 +117,11 @@ O limite de onze posições é fixo, sem opção de CLI para ampliá-lo:
 | 10 | 1.298.074.214.633.706.907.132.624.082.305.024 | aproximadamente 81.129.638.414.606.681.695.789.005.144.064 |
 | 11 | 2.658.455.991.569.831.745.807.614.120.560.689.152 | aproximadamente 166.153.499.473.114.484.112.975.882.535.043.072 |
 
+Aceitar até 11 posições demonstra o espaço de busca matemático; não implica que
+esses espaços sejam viáveis para execução completa. Mesmo duas posições podem
+levar minutos, conforme a máquina e a posição da solução; espaços maiores são
+impraticáveis para concluir com esta implementação serial.
+
 Quando a última palavra é desconhecida, exatamente 1/16 das combinações é válida.
 Se ela é conhecida e outras posições variam, essa proporção é uma expectativa;
 os contadores exibem os valores realmente observados. Duas palavras já podem
@@ -348,10 +353,8 @@ python scripts/browser_qa.py
 ```
 
 Esse QA usa somente o alvo público regtest do README, captura estados de busca,
-resultado sem saldo e alerta positivo simulado, e não cria transações. A última
-execução passou em Chromium e Firefox: sem erros de JavaScript, sem overflow em
-1920, 1366, 1024, 768, 390, 360 e 320 px no Chromium; Firefox foi conferido em
-1366 e 390 px.
+resultado sem saldo e alerta positivo simulado, e não cria transações. Ele cobre
+Chromium em 1920, 1366, 1024, 768, 390, 360 e 320 px e Firefox em 1366 e 390 px.
 
 ## 3. Benchmark e projeções
 
@@ -366,9 +369,21 @@ determinísticas públicas baseadas em SHA-256, sem qualquer endereço-alvo, pro
 de carteira ou impressão de chaves. A preparação das fixtures fica fora do tempo
 medido. Cada amostra medida valida checksum, gera seed, deriva chaves e endereço.
 
-O resultado informa derivações válidas/s, tempo médio e os tempos dos estágios
-checksum + PBKDF2 e BIP-32/BIP-84 + chaves/endereço. O tempo total inclui o loop,
-as medições e eventuais atualizações periódicas. O benchmark usa passphrase vazia.
+O resultado informa derivações válidas/s, tempo médio e dois grupos temporais.
+O primeiro, exibido como `mnemonic_to_seed (validação + PBKDF2)`, mede a chamada
+inteira da API: normalização, a validação/checksum feita por
+`mnemonic_to_seed()` (que chama `is_valid_mnemonic()` e normaliza novamente) e,
+só então, `Mnemonic.to_seed()` com sua própria normalização e PBKDF2-HMAC-SHA512.
+Portanto, esse número **não é PBKDF2 puro**. O segundo mede
+`wallet_from_seed()`, agrupando BIP-32/BIP-84, operações de chave secp256k1 e
+produção/codificação do endereço conforme executadas por `bip-utils`.
+
+O tempo total inclui o loop, as medições e eventuais atualizações periódicas; a
+preparação das fixtures e o aquecimento ficam fora dele. O benchmark usa
+passphrase vazia. A segunda validação de checksum permanece deliberadamente: na
+busca, um candidato válido já passou por `is_valid_mnemonic()`, mas a API de seed
+continua segura quando chamada isoladamente com uma entrada inválida. Não se deve
+remover essa validação sem uma mudança de contrato e uma análise própria.
 
 As projeções usam a taxa de **mnemonics válidas derivadas**, não a taxa bruta que
 inclui descartes rápidos. Para cada fração de 1%, 50% e 100%:
@@ -388,36 +403,73 @@ uniforme na enumeração, corresponde a aproximadamente 50% de chance e ao custo
 médio de busca. A execução real também depende de todas as palavras conhecidas,
 da passphrase e do caminho estarem corretos.
 
-### Medição desta implementação
+### Baseline serial e profiling de referência
 
-Execução local de `python main.py benchmark --samples 10000`, em 14/09/2026:
-AMD Ryzen 5 5500, Linux x86_64, Python 3.11.15, `mnemonic` 0.21,
-`bip-utils` 2.12.2 e `coincurve` 21.0.0, um processo, testnet.
+Em 15/09/2026, neste estado de trabalho, `python main.py benchmark --samples
+1000` foi executado em AMD Ryzen 5 5500 (6 núcleos / 12 CPUs lógicas), Linux
+x86_64, Python 3.11.15, `mnemonic` 0.21, `bip-utils` 2.12.2 e `coincurve`
+21.0.0, com um processo serial em testnet. É uma linha de base desta máquina,
+não uma garantia para outras máquinas.
 
 | Métrica | Resultado |
 | --- | ---: |
-| Derivações medidas | 10.000 |
-| Tempo total | 13,758188 s |
-| Mnemonics válidas derivadas/s | 726,84 |
-| Tempo médio | 1,375819 ms |
-| Checksum + PBKDF2 | 8,331682 s |
-| BIP-32/BIP-84 + chaves/endereço | 5,420465 s |
+| Derivações válidas medidas | 1.000 |
+| Tempo total | 1,402073 s |
+| Mnemonics válidas derivadas/s | 713,23 |
+| Tempo médio por candidato válido | 1,402073 ms |
+| `mnemonic_to_seed` (validação + PBKDF2) | 0,853786 s |
+| `wallet_from_seed` (BIP-32/BIP-84 + chaves/endereço) | 0,547673 s |
 
 | Palavras | Fração | Segundos | Anos |
 | --- | ---: | ---: | ---: |
-| 12 | 1% | 4,681669 × 10^33 | 1,483531 × 10^26 |
-| 12 | 50% | 2,340834 × 10^35 | 7,417657 × 10^27 |
-| 12 | 100% | 4,681669 × 10^35 | 1,483531 × 10^28 |
-| 24 | 1% | 1,593089 × 10^72 | 5,048195 × 10^64 |
-| 24 | 50% | 7,965447 × 10^73 | 2,524098 × 10^66 |
-| 24 | 100% | 1,593089 × 10^74 | 5,048195 × 10^66 |
+| 12 | 1% | 4,771006 × 10^33 | 1,511841 × 10^26 |
+| 12 | 50% | 2,385503 × 10^35 | 7,559203 × 10^27 |
+| 12 | 100% | 4,771006 × 10^35 | 1,511841 × 10^28 |
+| 24 | 1% | 1,623489 × 10^72 | 5,144527 × 10^64 |
+| 24 | 50% | 8,117447 × 10^73 | 2,572264 × 10^66 |
+| 24 | 100% | 1,623489 × 10^74 | 5,144527 × 10^66 |
 
-Estes valores são uma medição, não uma promessa de desempenho. O estágio
-checksum + PBKDF2 consumiu cerca de 61% do tempo; a medição não separa essas duas
-operações. Não houve mudança de arquitetura ou otimização após a medição.
-A API de derivação revalida o checksum por conta própria, inclusive quando a
-busca já o verificou. Essa pequena redundância mantém a API segura contra
-entradas inválidas e está incluída na execução da busca.
+Estes valores são uma medição, não uma promessa de desempenho. Nesta execução,
+o grupo inclusivo `mnemonic_to_seed` correspondeu a aproximadamente 61% do tempo
+total e `wallet_from_seed` a aproximadamente 39%; isso não atribui 61% ao
+PBKDF2 isoladamente. O profiling detalhado abaixo é necessário antes de qualquer
+otimização.
+
+Para obter uma decomposição reproduzível e limitada, separada da execução normal:
+
+```bash
+python scripts/profile_reference.py --samples 64
+```
+
+O script usa somente fixtures BIP-39 públicas e determinísticas, aceita de 1 a
+256 amostras e não enumera um modelo, não usa RPC e não recebe mnemonics do
+usuário. Ele mede separadamente a preparação das fixtures (fora do baseline),
+montagem do candidato, primeira validação, a chamada inteira de `mnemonic_to_seed`,
+`wallet_from_seed`, comparação e o residual de loop/timers. Também executa uma
+sonda PBKDF2 direta sobre frases English canônicas: ela exclui validação e
+normalização e, por isso, é diagnóstica e nunca deve ser somada ao tempo do
+pipeline.
+
+O `cProfile` do script informa por função tanto tempo exclusivo (corpo da função)
+quanto inclusivo (corpo mais chamadas filhas). Funções aninhadas, como
+`mnemonic_to_seed` → `is_valid_mnemonic` → `Mnemonic.to_seed`, não são categorias
+aditivas: somar tempos inclusivos delas produziria dupla contagem. A API atual da
+`bip-utils` não permite separar com precisão, sem reimplementar ou instrumentar a
+biblioteca, BIP-32/BIP-84, multiplicação secp256k1 e codificação de endereço;
+eles permanecem agrupados em `wallet_from_seed`.
+
+O pipeline serial atual é a referência de correção a preservar:
+
+```text
+mnemonic → seed → chave → endereço → comparação
+```
+
+Qualquer implementação acelerada futura deverá provar paridade com ele em
+fixtures públicas e candidatos sintéticos. Os testes atuais já cobrem vetores
+BIP-39/BIP-32/BIP-84 e as primitivas `is_valid_mnemonic`, `mnemonic_to_seed` e
+`wallet_from_seed`; quando houver um backend real, a adição apropriada é uma
+interface de resultado explícita e testes `reference_result(candidate) ==
+accelerated_result(candidate)`, sem substituir ou remover esta referência.
 
 ## Entendendo os padrões
 
@@ -501,10 +553,11 @@ python -m unittest discover -v
 python -m pip check
 ```
 
-A validação final com `BIP39_LAB_LIVE_REGTEST=1` passou **103 testes** em 1,171 s,
-incluindo os dois testes contra Bitcoin Core 31.1.0 regtest local. Sem esse
-opt-in, a mesma suíte passa 101 testes e marca os dois testes RPC como ignorados.
-O tempo varia com a máquina e a posição da palavra gerada em um teste.
+Na validação realizada em 15/09/2026 neste estado, `python -m unittest discover
+-v` executou **106 testes**, todos aprovados, com **2 integrações RPC opcionais
+ignoradas** sem `BIP39_LAB_LIVE_REGTEST=1`. A contagem inclui os testes do
+profiling limitado; os dois testes live continuam opt-in e exigem Bitcoin Core
+regtest local. O tempo varia conforme a máquina.
 
 Para executar os testes reais de RPC com o nó regtest local iniciado:
 
@@ -546,6 +599,17 @@ aleatória e recuperar uma palavra, em testnet e regtest, mantendo os dados
 gerados apenas em memória durante a verificação. `pip check` não encontrou
 dependências incompatíveis.
 
+### CI
+
+`.github/workflows/ci.yml` valida a referência em `push` e `pull_request` com
+Python 3.11 e 3.12: instala apenas `requirements.txt`, executa `pip check`,
+`unittest discover`, `compileall` e `node --check` no JavaScript principal. Não
+instala Bitcoin Core, Playwright, GPU/CUDA nem usa segredos, APIs ou serviços
+externos; por isso as integrações RPC live continuam ignoradas. As dependências
+diretas instaladas localmente declaram suporte a Python 3.12 (`mnemonic >=3.8.1`,
+`bip-utils >=3.7`), mas 3.12 não estava instalado nesta máquina para uma execução
+local; a matriz de GitHub Actions ainda não foi executada no GitHub.
+
 ## Security boundaries
 
 O software deliberadamente não busca carteiras com saldo e não tenta recuperar
@@ -582,12 +646,16 @@ para uso financeiro.
 
 ```text
 main.py
+.github/workflows/ci.yml
 bip39_lab/
   __init__.py
   wallet.py       # mnemonic, seed, BIP-32/BIP-84, chaves e endereço
   bruteforce.py   # enumeração limitada, comparação e estatísticas
   benchmark.py    # medição e projeções matemáticas
   balance.py      # monitor opcional do alvo, RPC local exclusivamente regtest
+  dashboard.py    # sessão em memória do painel regtest
+  web.py          # servidor HTTP restrito ao loopback
+  static/         # HTML, CSS, JavaScript e favicon locais
   cli.py          # comandos e apresentação
 tests/
   vectors.py
@@ -596,7 +664,13 @@ tests/
   test_benchmark.py
   test_cli.py
   test_balance.py
+  test_dashboard.py
+  test_web.py
+  test_profile_reference.py
   test_regtest_integration.py
+scripts/
+  browser_qa.py           # QA opcional com Playwright/navegadores locais
+  profile_reference.py    # baseline/profiling serial com fixtures públicas
 requirements.txt
 requirements-dev.txt
 .gitignore
@@ -604,14 +678,26 @@ README.md
 ```
 
 Somente English e 12 palavras; uma a onze posições desconhecidas; rede e caminho
-fixados por execução; busca em um processo CPU, com uma thread opcional para
-consulta de saldo local; sem retomada, GPU, CUDA, cluster ou sistema distribuído.
-O monitor só aceita regtest e mostra UTXOs confirmados, sem mempool.
-A passphrase precisa ser conhecida. O modo benchmark não mede a
-velocidade de enumeração/descarte de modelos incompletos.
+fixados por execução; busca serial em um processo CPU. Há threads apenas para o
+painel e a consulta opcional do saldo do alvo local; elas não paralelizam a busca.
+Não há retomada/checkpoint: uma futura arquitetura de scheduler/batches precisa
+ser definida antes de persistir estado sobre este enumerador serial. Não há GPU,
+CUDA, OpenCL, cluster ou sistema distribuído. O monitor só aceita regtest e mostra
+UTXOs confirmados, sem mempool. A passphrase precisa ser conhecida. O modo
+benchmark não mede a velocidade de enumeração/descarte de modelos incompletos.
 
-Experimentos seguintes possíveis dentro dos mesmos limites: comparar a última
-palavra desconhecida com uma posição intermediária; repetir o benchmark para
-observar variação; medir checksum e PBKDF2 separadamente; comparar passphrases e
-a codificação testnet/regtest; conferir outros vetores públicos. Qualquer mudança
-de arquitetura deve ser justificada por medições antes de ser implementada.
+### Portabilidade conhecida
+
+O núcleo Python não contém uma dependência explícita de Linux para a derivação
+offline. Os comandos de instalação do README usam `source .venv/bin/activate`,
+e o atalho de Bitcoin Core usa `/dev/null`, `$PWD`, `bitcoind` e `bitcoin-cli`;
+essas instruções exigem adaptação em Windows. O início automático do nó em
+`web.py` também passa `-conf=/dev/null` ao processo. A portabilidade para Windows,
+incluindo caminhos, ativação de venv e gestão do Bitcoin Core, não foi implementada
+nesta etapa.
+
+Experimentos seguintes possíveis dentro dos mesmos limites: repetir o baseline
+para observar variação, expandir o profiling somente quando uma separação for
+tecnicamente confiável, comparar posições desconhecidas e conferir mais vetores
+públicos. Qualquer mudança de arquitetura deve ser justificada por medições e por
+paridade com a referência antes de ser implementada.

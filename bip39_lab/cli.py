@@ -205,7 +205,7 @@ def benchmark_command(args: argparse.Namespace) -> int:
         f"({result.seconds_per_candidate * 1000:.3f}ms)"
     )
     print(
-        f"Checksum + PBKDF2: {result.seed_seconds:.6f}s | "
+        f"mnemonic_to_seed (validação + PBKDF2): {result.seed_seconds:.6f}s | "
         f"BIP-32/BIP-84 + chaves/endereço: {result.derivation_seconds:.6f}s"
     )
     print("Projeção matemática: tempo = fração × 2^bits / derivações válidas por segundo.")

@@ -32,7 +32,7 @@
             <details class="passphrase-options"><summary>Passphrase BIP-39 opcional</summary><label class="sr-only" for="passphrase">Passphrase conhecida</label><input id="passphrase" type="password" autocomplete="off" maxlength="1024" placeholder="Vazia por padrão"><p class="field-help">Precisa ser a mesma usada para gerar o alvo.</p></details>
             <label for="operation">Operação</label>
             <select id="operation"><option value="limited">Busca limitada · 1 a 11 ?</option><option value="validate">Validar uma mnemonic completa · 12 palavras</option></select>
-            <p class="field-help" id="operation-help">A busca limitada enumera somente as posições marcadas com <code>?</code>.</p>
+            <p class="field-help" id="operation-help">A busca limitada enumera somente as posições marcadas com <code>?</code>; espaços grandes são matematicamente aceitos, mas impraticáveis para concluir.</p>
             <label for="mode">Ritmo das tentativas</label>
             <select id="mode"><option value="visual">Visual · até 50 tentativas/s</option><option value="fast">Sem pausa · velocidade máxima</option></select>
             <p class="field-help">No modo visual, cada tentativa real recebe uma pausa de 20 ms.</p>
@@ -41,7 +41,7 @@
           <div class="run-actions"><button class="button primary" id="start" type="submit"><span>▶</span> Iniciar experimento</button><button class="button stop" id="stop" type="button" disabled aria-label="Interromper experimento">■</button></div>
           <button class="button clear-button" id="clear" type="button">Limpar experimento</button>
         </form>
-        <div class="path-note"><span>CAMINHO DE DERIVAÇÃO</span><code>m/84'/1'/0'/0/0</code><p>12 palavras English. Busca limitada a 11 ?; a validação completa faz uma única derivação. Nenhuma transação.</p></div>
+        <div class="path-note"><span>CAMINHO DE DERIVAÇÃO</span><code>m/84'/1'/0'/0/0</code><p>12 palavras English. Até 11 ? são aceitos para demonstrar o espaço matemático; espaços grandes não são práticos para concluir. A validação completa faz uma única derivação. Nenhuma transação.</p></div>
       </aside>
       <section class="live-panel" aria-label="Acompanhamento do experimento">
         <div class="live-heading"><div class="panel-title"><span class="status-dot" id="run-dot"></span><h2 id="run-state">Pronto para observar</h2></div><span class="sample-badge" id="sample-label">AGUARDANDO INÍCIO</span></div>

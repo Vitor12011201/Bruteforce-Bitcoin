@@ -136,7 +136,7 @@ function updateTemplatePreview() {
     text("total", words.length === 12 && unknown === 0 ? "1" : "—");
   } else {
     text("template-help", words.length ? `${words.length}/12 palavras · ${unknown}/11 posições desconhecidas` : "Substitua de uma a onze palavras por ?.");
-    text("operation-help", "A busca limitada enumera somente as posições marcadas com ?. O limite de 11 é fixo.");
+    text("operation-help", "A busca limitada enumera somente as posições marcadas com ?. Até 11 são aceitas para o modelo matemático; espaços grandes são impraticáveis para concluir.");
     text("total", words.length === 12 && unknown > 0 && unknown <= 11 ? formatInteger(2048n ** BigInt(unknown)) : "—");
   }
 }
